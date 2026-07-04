@@ -1,0 +1,39 @@
+{
+  "direction": "LONG",
+  "entryPrice": 64250.0,
+  "entryTime": "2026-07-04T12:00:00Z",
+  "tp": 65000.0,
+  "sl": 63800.0,
+  "stats": {
+    "totalTrades": 42,
+    "wins": 28,
+    "losses": 14,
+    "totalPnlUsd": 1250.42,
+    "totalPnlPts": 195.5
+  },
+  "trade_history": [
+    {
+      "entry_price": 63500.0,
+      "exit_price": 64100.0,
+      "entry_time": "2026-07-03T08:00:00Z",
+      "exit_time": "2026-07-03T14:30:00Z",
+      "direction": "LONG",
+      "pnl_pts": 600.0,
+      "pnl_usd": 180.0,
+      "duration_min": 390,
+      "reason": "take_profit"
+    },
+    {
+      "entry_price": 64300.0,
+      "exit_price": 63900.0,
+      "entry_time": "2026-07-02T22:00:00Z",
+      "exit_time": "2026-07-03T01:00:00Z",
+      "direction": "SHORT",
+      "pnl_pts": 400.0,
+      "pnl_usd": -120.0,
+      "duration_min": 180,
+      "reason": "stop_loss"
+    }
+  ],
+  "lastCheck": "2026-07-04T15:30:00Z"
+}

@@ -1,0 +1,9 @@
+{
+  "maxPositions": 1,
+  "positionSizeUsd": 100,
+  "leverage": 3,
+  "takeProfitPct": 1.5,
+  "stopLossPct": 1.0,
+  "trailingStop": true,
+  "trailActivationPct": 0.5
+}

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orion Quant Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="data:,">
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] },
+                    colors: { darkBg: '#000000', darkCard: '#0a0a0a', darkBorder: '#1a1a1a', accentBlue: '#3b82f6', accentGreen: '#10b981', accentRed: '#ef4444', accentGold: '#f59e0b' }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #000; color: #e2e8f0; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+        .asset-card { border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; }
+        .asset-card.selected { background: rgba(30, 64, 175, 0.15); }
+        #chart-container { position: relative; }
+    </style>
+</head>
+<body class="font-sans min-h-screen flex flex-col">
+
+    <header class="border-b border-darkBorder bg-black sticky top-0 z-50">
+        <div class="w-full px-3 h-12 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <h1 class="text-sm font-bold tracking-tight text-white font-mono">ORION</h1>
+                <span class="text-[10px] text-slate-600 font-mono">QUANT PLATFORM</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs">
+                <div class="flex items-center gap-3">
+                    <span class="text-slate-600 text-[10px] uppercase">P&L</span>
+                    <span id="global-pnl" class="font-bold text-accentGreen font-mono text-xs">+$0.00</span>
+                    <span class="text-slate-600">|</span>
+                    <span class="text-slate-600 text-[10px] uppercase">WR</span>
+                    <span id="global-wr" class="font-bold text-slate-200 font-mono text-xs">0%</span>
+                    <span class="text-slate-600">|</span>
+                    <span class="text-slate-600 text-[10px] uppercase">Bots</span>
+                    <span id="global-running" class="font-bold text-slate-200 font-mono text-xs">0/7</span>
+                </div>
+                <div class="flex items-center gap-1.5 ml-2">
+                    <div id="conn-status" class="h-1.5 w-1.5 rounded-full bg-accentGreen"></div>
+                    <span id="conn-text" class="text-[10px] text-slate-500 font-mono">Live</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full px-2 py-2 flex flex-col gap-2">
+
+        <section class="grid grid-cols-7 gap-1.5">
+            <div id="asset-cards-container" class="contents"></div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-2">
+
+            <div class="lg:col-span-8 flex flex-col gap-2">
+
+                <div class="p-2 flex flex-col gap-2" style="background:rgba(8,8,8,0.95)">
+                    <div class="flex items-center justify-between px-1">
+                        <div class="flex items-center gap-2">
+                            <span id="chart-title-asset" class="text-sm font-bold text-white">BTC-PERP</span>
+                            <span id="chart-title-position" class="px-1.5 py-0.5 text-[10px] font-mono bg-emerald-500/10 text-emerald-400">LONG</span>
+                        </div>
+                    </div>
+                    <div id="chart-container" class="w-full h-[520px]"></div>
+                </div>
+
+                <div class="p-2" style="background:rgba(8,8,8,0.95)">
+                    <div class="flex items-center gap-3 text-[10px]">
+                        <span class="text-slate-600 uppercase">Dir</span>
+                        <span id="pos-dir" class="font-bold text-xs font-mono text-slate-400">FLAT</span>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-slate-600 uppercase">Entry</span>
+                        <span id="pos-entry" class="font-mono text-xs text-slate-300">-</span>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-slate-600 uppercase">TP</span>
+                        <span id="pos-tp" class="font-mono text-xs text-accentGreen">-</span>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-slate-600 uppercase">SL</span>
+                        <span id="pos-sl" class="font-mono text-xs text-accentRed">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-4 flex flex-col gap-2">
+
+                <div class="p-2" style="background:rgba(8,8,8,0.95)">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] text-slate-600 uppercase font-semibold">Config</span>
+                    </div>
+                    <div class="overflow-y-auto max-h-[140px] text-[10px] font-mono bg-black/60 p-2">
+                        <table class="w-full text-left">
+                            <tbody id="config-table-body" class="divide-y divide-darkBorder/20"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="p-2 flex flex-col gap-1" style="background:rgba(8,8,8,0.95);min-height:200px">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-slate-600 uppercase font-semibold">Trades</span>
+                        <span id="trades-count" class="text-[9px] text-slate-600 font-mono">--</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-[300px]">
+                        <table class="w-full text-left text-[10px] font-mono">
+                            <thead>
+                                <tr class="border-b border-darkBorder text-slate-600 uppercase tracking-wider">
+                                    <th class="pb-1.5 font-semibold text-[9px]">Dir</th><th class="pb-1.5 font-semibold text-[9px]">Entry</th><th class="pb-1.5 font-semibold text-[9px]">Exit</th>
+                                    <th class="pb-1.5 font-semibold text-[9px]">PnL</th><th class="pb-1.5 font-semibold text-[9px]">$</th><th class="pb-1.5 font-semibold text-[9px]">Dur</th>
+                                    <th class="pb-1.5 font-semibold text-[9px]">Reason</th><th class="pb-1.5 font-semibold text-[9px]">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trades-table-body" class="divide-y divide-darkBorder/20"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        let statusData = {};
+        let selectedAsset = 'BTC';
+        let chart = null;
+        let series = null;
+        let markers = [];
+        const ASSETS = [];
+
+        function formatUSD(v) {
+            if (v == null) return '-';
+            var s = v >= 0 ? '+' : '';
+            return s + '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function fmt(v, d) { return v == null ? '-' : Number(v).toLocaleString(undefined, { minimumFractionDigits: d||4, maximumFractionDigits: d||4 }); }
+
+        function initChart() {
+            chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+                layout: { background: { type: 'solid', color: '#000000' }, textColor: '#9ca3af' },
+                grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
+                timeScale: { timeVisible: true, secondsVisible: false },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#1a1a1a' },
+                width: document.getElementById('chart-container').clientWidth,
+                height: 520,
+            });
+            series = chart.addCandlestickSeries({
+                upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444',
+                wickUpColor: '#10b981', wickDownColor: '#ef4444',
+            });
+            chart.subscribeCrosshairMove(function(param) {
+                // future: show trade info on hover
+            });
+            window.addEventListener('resize', function() {
+                var c = document.getElementById('chart-container');
+                chart.applyOptions({ width: c.clientWidth });
+            });
+        }
+
+        function loadChartData(asset) {
+            fetch('/api/candles/' + asset).then(function(r) { return r.json(); }).then(function(data) {
+                if (!Array.isArray(data)) return;
+                series.setData(data.map(function(c) { return { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }; }));
+                updateMarkers(asset);
+            }).catch(function(e) { console.error('candle error', e); });
+        }
+
+        function updateMarkers(asset) {
+            var state = (statusData[asset] || {}).state || {};
+            var trades = state.trade_history || [];
+            var m = [];
+            trades.forEach(function(t, idx) {
+                if (!t.exit_time) return;
+                var tSec = Math.floor(new Date(t.exit_time).getTime() / 1000);
+                m.push({
+                    time: tSec, position: t.direction === 'LONG' ? 'belowBar' : 'aboveBar',
+                    color: t.pnl_usd > 0 ? '#10b981' : '#ef4444',
+                    shape: t.pnl_usd > 0 ? 'arrowUp' : 'arrowDown',
+                    text: (t.pnl_usd > 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0)
+                });
+            });
+            if (state.direction && state.direction !== 'FLAT' && state.entryPrice && state.entryTime) {
+                var eSec = Math.floor(new Date(state.entryTime).getTime() / 1000);
+                m.push({ time: eSec, position: 'inBar', color: '#3b82f6', shape: 'circle', text: 'E' });
+            }
+            series.setMarkers(m);
+        }
+
+        function selectAsset(asset) {
+            selectedAsset = asset;
+            document.querySelectorAll('.asset-card').forEach(function(c) { c.classList.toggle('selected', c.dataset.asset === asset); });
+            document.getElementById('chart-title-asset').innerText = asset + '-PERP';
+
+            var state = (statusData[asset] || {}).state || {};
+            var dir = state.direction || 'FLAT';
+            var badge = document.getElementById('chart-title-position');
+            badge.innerText = dir;
+            badge.className = 'px-2.5 py-0.5 text-xs font-semibold rounded ' + (
+                dir === 'LONG' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                dir === 'SHORT' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                'bg-slate-800 text-slate-400 border border-slate-700/50');
+
+            var pd = document.getElementById('pos-dir');
+            pd.innerText = dir;
+            pd.className = 'font-bold text-xs font-mono ' + (dir === 'LONG' ? 'text-accentGreen' : dir === 'SHORT' ? 'text-accentRed' : 'text-slate-400');
+
+            document.getElementById('pos-entry').innerText = state.entryPrice ? fmt(state.entryPrice) : '-';
+            document.getElementById('pos-tp').innerText = state.tp ? fmt(state.tp) : '-';
+            document.getElementById('pos-sl').innerText = state.sl ? fmt(state.sl) : (state.trailSlPrice ? fmt(state.trailSlPrice) : '-');
+
+            var configTable = document.getElementById('config-table-body');
+            configTable.innerHTML = '';
+            var config = (statusData[asset] || {}).config || {};
+            Object.entries(config).forEach(function(e) {
+                configTable.innerHTML += '<tr class="hover:bg-darkBg/30"><td class="py-1.5 text-slate-500 font-semibold uppercase">' + e[0].replace(/_/g, ' ') + '</td><td class="py-1.5 text-right font-mono text-slate-200">' + (typeof e[1] === 'number' ? fmt(e[1], 4) : e[1]) + '</td></tr>';
+            });
+            if (Object.keys(config).length === 0) configTable.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-600">No config — set via configs/ directory</td></tr>';
+
+            var historyTable = document.getElementById('trades-table-body');
+            historyTable.innerHTML = '';
+            var history = state.trade_history || [];
+            var display = history.slice(-10).reverse();
+            document.getElementById('trades-count').innerText = 'Showing last ' + display.length + ' / ' + history.length;
+            display.forEach(function(t) {
+                var isWin = t.pnl_usd > 0;
+                var dt = new Date(t.exit_time);
+                historyTable.innerHTML += '<tr class="hover:bg-darkBg/30 border-b border-darkBorder/20"><td class="py-2.5 font-bold ' + (t.direction === 'LONG' ? 'text-accentGreen' : 'text-accentRed') + '">' + t.direction + '</td><td class="py-2.5 text-slate-300 font-mono">' + fmt(t.entry_price) + '</td><td class="py-2.5 text-slate-300 font-mono">' + fmt(t.exit_price) + '</td><td class="py-2.5 font-mono ' + (t.pnl_pts >= 0 ? 'text-accentGreen' : 'text-accentRed') + '">' + (t.pnl_pts >= 0 ? '+' : '') + fmt(t.pnl_pts, 2) + '</td><td class="py-2.5 font-bold font-mono ' + (isWin ? 'text-accentGreen' : 'text-accentRed') + '">' + formatUSD(t.pnl_usd) + '</td><td class="py-2.5 text-slate-400">' + (t.duration_min ? Math.round(t.duration_min) + ' min' : '-') + '</td><td class="py-2.5 text-slate-400 text-[10px] uppercase font-semibold">' + (t.reason || '-') + '</td><td class="py-2.5 text-slate-500 text-[10px]">' + dt.toLocaleString() + '</td></tr>';
+            });
+            if (display.length === 0) historyTable.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-600">No trades yet — your algo writes trade_history to states/</td></tr>';
+
+            loadChartData(asset);
+        }
+
+        function updateStatus() {
+            fetch('/api/status').then(function(r) { return r.json(); }).then(function(data) {
+                statusData = data;
+                document.getElementById('conn-status').className = 'h-2 w-2 rounded-full bg-accentGreen';
+                document.getElementById('conn-text').innerText = 'Connected';
+
+                var container = document.getElementById('asset-cards-container');
+                var isFirstLoad = container.children.length === 0;
+                var totalPnl = 0, totalWins = 0, totalLosses = 0, active = 0;
+                var html = '';
+
+                Object.entries(data).forEach(function(e) {
+                    var asset = e[0], info = e[1];
+                    var state = info.state || {};
+                    var stats = state.stats || {};
+                    var pnl = stats.totalPnlUsd || 0;
+                    var dir = state.direction || 'FLAT';
+                    totalPnl += pnl;
+                    totalWins += stats.wins || 0;
+                    totalLosses += stats.losses || 0;
+                    var totalT = stats.totalTrades || 0;
+                    var wr = totalT > 0 ? (stats.wins / totalT * 100).toFixed(0) : 0;
+                    var isSelected = selectedAsset === asset;
+
+                    html += '<div onclick="selectAsset(\'' + asset + '\')" data-asset="' + asset + '" class="asset-card p-2 ' + (isSelected ? 'bg-slate-900' : 'hover:bg-slate-900/50') + ' flex flex-col justify-between h-[60px]">';
+                    html += '<div class="flex items-center justify-between"><span class="font-bold text-xs text-white">' + asset + '</span></div>';
+                    html += '<div class="flex items-center justify-between"><span class="text-[10px] font-mono font-bold ' + (pnl >= 0 ? 'text-accentGreen' : 'text-accentRed') + '">' + (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(0) + '</span><span class="text-[10px] font-mono font-bold uppercase ' + (dir === 'LONG' ? 'text-accentGreen' : dir === 'SHORT' ? 'text-accentRed' : 'text-slate-500') + '">' + dir + '</span><span class="text-[9px] text-slate-600 font-mono">' + wr + '%</span><span class="text-[9px] text-slate-600 font-mono">' + totalT + 'T</span></div>';
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+
+                var gPnl = document.getElementById('global-pnl');
+                gPnl.innerText = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                gPnl.className = 'font-bold font-mono ' + (totalPnl >= 0 ? 'text-accentGreen' : 'text-accentRed');
+                document.getElementById('global-wr').innerText = (totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses) * 100).toFixed(1) : '0.0') + '%';
+                document.getElementById('global-running').innerText = active + '/' + Object.keys(data).length;
+
+                if (isFirstLoad) selectAsset(selectedAsset);
+            }).catch(function(e) {
+                console.error('status error', e);
+                document.getElementById('conn-status').className = 'h-2 w-2 rounded-full bg-accentRed';
+                document.getElementById('conn-text').innerText = 'Disconnected';
+            });
+        }
+
+        window.addEventListener('load', function() {
+            initChart();
+            updateStatus();
+            setInterval(updateStatus, 3000);
+        });
+    </script>
+</body>
+</html>

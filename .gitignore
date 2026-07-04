@@ -1,0 +1,38 @@
+# Orion Quant Platform — .gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Algo source code (your proprietary strategies)
+orion_*.py
+hl_ws_client.py
+
+# Runtime state files (written by your algo)
+states/
+
+# Config overrides
+configs/
+
+# TradingView Charting Library (commercial — requires own license)
+static/charting_library/
+
+# Flask instance
+instance/
