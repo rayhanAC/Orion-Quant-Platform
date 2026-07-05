@@ -258,34 +258,113 @@
             setTimeout(function() { chartInitInProgress = false; }, 10000);
         }
 
-        function updateMarkers(asset) {
-            if (!widget || !widgetReady) return;
-            var chart = widget.chart();
+        function isoToSec(iso) { return iso ? Math.floor(new Date(iso).getTime() / 1000) : null; }
+
+        function removeShapes(chart) {
             _shapeIds.forEach(function(id) {
                 try { chart.removeEntity(id); } catch(e) {}
             });
             _shapeIds = [];
+        }
+
+        function pushShape(promise) {
+            if (!promise || !promise.then) return;
+            promise.then(function(id) { _shapeIds.push(id); }).catch(function(){});
+        }
+
+        function updateMarkers(asset) {
+            if (!widget || !widgetReady) return;
+            var chart = widget.chart();
+            removeShapes(chart);
             var state = (statusData[asset] || {}).state || {};
+            var nowSec = Math.floor(Date.now() / 1000);
+
+            // ── Closed trades ───────────────────────────────────────────────
             var trades = state.trade_history || [];
             trades.forEach(function(t) {
                 if (!t.exit_time) return;
-                var time = Math.floor(new Date(t.exit_time).getTime() / 1000);
-                try {
-                    chart.createShape({ time: time }, {
-                        shape: 'flag',
-                        text: (t.pnl_usd >= 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0),
-                        overrides: { flagColor: t.pnl_usd >= 0 ? '#10b981' : '#ef4444' },
-                    }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
-                } catch(e) {}
-            });
-            if (state.direction && state.direction !== 'FLAT' && state.entryPrice && state.entryTime) {
-                var eTime = Math.floor(new Date(state.entryTime).getTime() / 1000);
-                try {
-                    chart.createShape({ time: eTime }, {
+                var entryTime = isoToSec(t.entry_time);
+                var exitTime = isoToSec(t.exit_time);
+                var isWin = t.pnl_usd >= 0;
+                var color = isWin ? '#10b981' : '#ef4444';
+
+                // Entry marker
+                if (entryTime && t.entry_price) {
+                    pushShape(chart.createShape({ time: entryTime, price: t.entry_price }, {
                         shape: 'flag', text: 'E',
                         overrides: { flagColor: '#3b82f6' },
-                    }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
-                } catch(e) {}
+                        disableSelection: true, disableSave: true, disableUndo: true, lock: true,
+                    }));
+                }
+
+                // Exit marker with PnL
+                if (exitTime && t.exit_price) {
+                    pushShape(chart.createShape({ time: exitTime, price: t.exit_price }, {
+                        shape: 'flag',
+                        text: (isWin ? '+' : '') + Number(t.pnl_usd).toFixed(0),
+                        overrides: { flagColor: color },
+                        disableSelection: true, disableSave: true, disableUndo: true, lock: true,
+                    }));
+                }
+
+                // SL / TP line segments for the trade duration
+                if (entryTime && exitTime) {
+                    if (t.sl) {
+                        pushShape(chart.createMultipointShape(
+                            [{ time: entryTime, price: t.sl }, { time: exitTime, price: t.sl }],
+                            { shape: 'trend_line', text: 'SL', overrides: { linecolor: '#ef4444', linewidth: 1 },
+                              disableSelection: true, disableSave: true, disableUndo: true, lock: true }
+                        ));
+                    }
+                    if (t.tp) {
+                        pushShape(chart.createMultipointShape(
+                            [{ time: entryTime, price: t.tp }, { time: exitTime, price: t.tp }],
+                            { shape: 'trend_line', text: 'TP', overrides: { linecolor: '#10b981', linewidth: 1 },
+                              disableSelection: true, disableSave: true, disableUndo: true, lock: true }
+                        ));
+                    }
+                }
+            });
+
+            // ── Active position ─────────────────────────────────────────────
+            if (state.direction && state.direction !== 'FLAT' && state.entryPrice && state.entryTime) {
+                var entryTime = isoToSec(state.entryTime);
+                var sl = state.sl;
+                var tp = state.tp;
+
+                if (entryTime) {
+                    pushShape(chart.createShape({ time: entryTime, price: state.entryPrice }, {
+                        shape: 'flag', text: 'E',
+                        overrides: { flagColor: '#3b82f6' },
+                        disableSelection: true, disableSave: true, disableUndo: true, lock: true,
+                    }));
+                }
+
+                if (entryTime && sl) {
+                    pushShape(chart.createMultipointShape(
+                        [{ time: entryTime, price: sl }],
+                        { shape: 'horizontal_ray', text: 'SL', overrides: { linecolor: '#ef4444', linewidth: 2 },
+                          disableSelection: true, disableSave: true, disableUndo: true, lock: true }
+                    ));
+                }
+                if (entryTime && tp) {
+                    pushShape(chart.createMultipointShape(
+                        [{ time: entryTime, price: tp }],
+                        { shape: 'horizontal_ray', text: 'TP', overrides: { linecolor: '#10b981', linewidth: 2 },
+                          disableSelection: true, disableSave: true, disableUndo: true, lock: true }
+                    ));
+                }
+
+                // DCA levels as faint horizontal rays
+                (state.dca_levels || []).forEach(function(lvl, idx) {
+                    if (entryTime && lvl) {
+                        pushShape(chart.createMultipointShape(
+                            [{ time: entryTime, price: lvl }],
+                            { shape: 'horizontal_ray', text: 'DCA' + (idx + 1), overrides: { linecolor: '#f59e0b', linewidth: 1, linestyle: 2 },
+                              disableSelection: true, disableSave: true, disableUndo: true, lock: true }
+                        ));
+                    }
+                });
             }
         }
 
