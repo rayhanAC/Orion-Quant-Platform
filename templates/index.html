@@ -183,7 +183,6 @@
                     }, 0);
                 },
                 getBars: function(sym, res, params, onResult, onError) {
-                    try { fetch('/api/log', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({msg: 'getBars symbol=' + sym.name + ' res=' + res + ' from=' + params.from + ' to=' + params.to + ' countBack=' + params.countBack + ' first=' + params.firstDataRequest}) }); } catch(e) {}
                     fetch('/api/candles/' + sym.name)
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
@@ -191,10 +190,16 @@
                             var bars = data.map(function(c) {
                                 return { time: c.time * 1000, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
                             });
-                            var limit = params.countBack || bars.length;
-                            var result = bars.length > limit ? bars.slice(bars.length - limit) : bars;
-                            console.log('[bars] countBack:', limit, 'returning:', result.length, 'first:', new Date(result[0].time).toISOString(), 'last:', new Date(result[result.length-1].time).toISOString());
-                            onResult(result, { noData: false });
+                            // params.from/to are Unix timestamps in seconds; bars are in ms
+                            var fromMs = params.from * 1000;
+                            var toMs = params.to * 1000;
+                            var filtered = bars.filter(function(b) { return b.time >= fromMs && b.time < toMs; });
+                            if (params.countBack && filtered.length > params.countBack) {
+                                filtered = filtered.slice(filtered.length - params.countBack);
+                            }
+                            if (!filtered.length) { onResult([], { noData: true }); return; }
+                            console.log('[bars] from:', new Date(fromMs).toISOString(), 'to:', new Date(toMs).toISOString(), 'returning:', filtered.length);
+                            onResult(filtered, { noData: false });
                         })
                         .catch(function(e) { console.error('[bars] error', e); onError(e.message); });
                 },
@@ -207,7 +212,7 @@
                                 var last = data[data.length - 1];
                                 onTick({ time: last.time * 1000, open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume });
                             });
-                    }, 15000);
+                    }, 5000);
                     intervals[guid] = timer;
                 },
                 unsubscribeBars: function(guid) {
