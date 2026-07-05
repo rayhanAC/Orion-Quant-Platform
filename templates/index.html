@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="data:,">
     <script src="/static/charting_library/charting_library.standalone.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -63,6 +64,13 @@
             </div>
         </div>
     </header>
+
+    <div class="border-b border-darkBorder bg-black">
+        <div class="w-full px-3 py-1.5 flex items-center justify-between">
+            <div id="bot-health-bar" class="flex items-center gap-3"></div>
+            <span id="last-update-text" class="text-[10px] text-slate-500 font-mono">Last update: —</span>
+        </div>
+    </div>
 
     <main class="flex-grow w-full px-2 py-2 flex flex-col gap-2">
 
@@ -139,6 +147,99 @@
 
         </section>
 
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-2">
+
+            <div class="lg:col-span-5 p-2 flex flex-col gap-2" style="background:rgba(8,8,8,0.95)">
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-[10px] text-slate-600 uppercase font-semibold">Equity Curve</span>
+                    <div class="flex items-center gap-3 text-[10px] font-mono">
+                        <span class="text-slate-600">Equity</span><span id="eq-equity" class="text-slate-200">—</span>
+                        <span class="text-slate-600">Peak</span><span id="eq-peak" class="text-slate-200">—</span>
+                        <span class="text-slate-600">DD</span><span id="eq-dd" class="text-accentRed">—</span>
+                    </div>
+                </div>
+                <div id="equity-chart-container" class="w-full h-[260px]"></div>
+            </div>
+
+            <div class="lg:col-span-4 p-2 flex flex-col gap-2" style="background:rgba(8,8,8,0.95)">
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-[10px] text-slate-600 uppercase font-semibold">Trade Analytics</span>
+                    <a href="/api/export_trades" target="_blank" class="text-[10px] text-accentBlue hover:text-blue-400 font-mono">Export</a>
+                </div>
+                <div class="flex items-center gap-2 text-[10px]">
+                    <select id="analytics-asset-filter" class="bg-black border border-darkBorder text-slate-300 rounded px-1.5 py-1 font-mono focus:outline-none focus:border-accentBlue">
+                        <option value="ALL">ALL ASSETS</option>
+                    </select>
+                    <select id="analytics-direction-filter" class="bg-black border border-darkBorder text-slate-300 rounded px-1.5 py-1 font-mono focus:outline-none focus:border-accentBlue">
+                        <option value="ALL">ALL DIRS</option>
+                        <option value="LONG">LONG</option>
+                        <option value="SHORT">SHORT</option>
+                    </select>
+                    <select id="analytics-reason-filter" class="bg-black border border-darkBorder text-slate-300 rounded px-1.5 py-1 font-mono focus:outline-none focus:border-accentBlue">
+                        <option value="ALL">ALL REASONS</option>
+                        <option value="TARGET">TARGET</option>
+                        <option value="STOP_LOSS">STOP_LOSS</option>
+                        <option value="TIME">TIME</option>
+                    </select>
+                </div>
+                <div id="analytics-stats" class="grid grid-cols-3 gap-2 text-[10px]"></div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-[10px] font-mono">
+                        <thead>
+                            <tr class="border-b border-darkBorder text-slate-600 uppercase tracking-wider">
+                                <th class="pb-1 font-semibold text-[9px]">Reason</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Trades</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Wins</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Losses</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Win%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-reason-body" class="divide-y divide-darkBorder/20"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="lg:col-span-3 p-2 flex flex-col gap-2" style="background:rgba(8,8,8,0.95)">
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-[10px] text-slate-600 uppercase font-semibold">Risk Dashboard</span>
+                </div>
+                <div class="grid grid-cols-1 gap-2 text-[10px]">
+                    <div class="flex items-center justify-between border-b border-darkBorder/50 pb-1">
+                        <span class="text-slate-500">Open Exposure</span>
+                        <span id="risk-exposure" class="font-mono font-bold text-slate-200">—</span>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-darkBorder/50 pb-1">
+                        <span class="text-slate-500">Risk to Stop</span>
+                        <span id="risk-stop" class="font-mono font-bold text-accentRed">—</span>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-darkBorder/50 pb-1">
+                        <span class="text-slate-500">Today P&L</span>
+                        <span id="risk-today-pnl" class="font-mono font-bold">—</span>
+                    </div>
+                    <div class="flex items-center justify-between border-b border-darkBorder/50 pb-1">
+                        <span class="text-slate-500">Daily Limit</span>
+                        <span id="risk-limit" class="font-mono font-bold text-slate-200">—</span>
+                    </div>
+                    <div class="w-full bg-darkBorder/30 h-1.5 rounded-full overflow-hidden">
+                        <div id="risk-limit-bar" class="h-full bg-accentGreen" style="width:0%"></div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[160px]">
+                    <table class="w-full text-left text-[10px] font-mono">
+                        <thead>
+                            <tr class="border-b border-darkBorder text-slate-600 uppercase tracking-wider">
+                                <th class="pb-1 font-semibold text-[9px]">Asset</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Exposure</th>
+                                <th class="pb-1 font-semibold text-[9px] text-right">Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risk-asset-body" class="divide-y divide-darkBorder/20"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
     </main>
 
     <script>
@@ -149,6 +250,11 @@
         let chartReadyCount = 0;
         let chartInitInProgress = false;
         let _shapeIds = [];
+        let equityChart = null;
+        let equitySeries = null;
+        let filterAsset = 'ALL';
+        let filterDirection = 'ALL';
+        let filterReason = 'ALL';
 
         function formatUSD(v) {
             if (v == null) return '-';
@@ -156,6 +262,198 @@
             return s + '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         function fmt(v, d) { return v == null ? '-' : Number(v).toLocaleString(undefined, { minimumFractionDigits: d||4, maximumFractionDigits: d||4 }); }
+
+        function normalizeReason(r) {
+            if (!r) return 'OTHER';
+            var s = String(r).toLowerCase();
+            if (s.indexOf('take') !== -1 || s.indexOf('profit') !== -1 || s.indexOf('tp') !== -1 || s.indexOf('target') !== -1) return 'TARGET';
+            if (s.indexOf('stop') !== -1 || s.indexOf('loss') !== -1 || s.indexOf('sl') !== -1) return 'STOP_LOSS';
+            if (s.indexOf('time') !== -1 || s.indexOf('timeout') !== -1 || s.indexOf('hold') !== -1 || s.indexOf('expire') !== -1) return 'TIME';
+            return 'OTHER';
+        }
+
+        function allTradesFromStatus(data) {
+            var trades = [];
+            Object.entries(data).forEach(function(e) {
+                var asset = e[0], info = e[1];
+                if (asset === 'global_metrics' || asset === 'total_open_exposure_usd' || asset === 'total_open_risk_usd' || asset === 'today_pnl_usd' || asset === 'daily_loss_limit') return;
+                (info.state && info.state.trade_history || []).forEach(function(t) {
+                    trades.push(Object.assign({ asset: asset }, t));
+                });
+            });
+            return trades;
+        }
+
+        function collectFilteredTrades() {
+            var trades = allTradesFromStatus(statusData);
+            return trades.filter(function(t) {
+                if (filterAsset !== 'ALL' && t.asset !== filterAsset) return false;
+                if (filterDirection !== 'ALL' && t.direction !== filterDirection) return false;
+                if (filterReason !== 'ALL' && normalizeReason(t.reason) !== filterReason) return false;
+                return true;
+            });
+        }
+
+        function initEquityChart() {
+            var container = document.getElementById('equity-chart-container');
+            if (!container || equityChart) return;
+            equityChart = LightweightCharts.createChart(container, {
+                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: 'rgba(255,255,255,0.05)' },
+                timeScale: { borderColor: 'rgba(255,255,255,0.05)', timeVisible: true },
+                autoSize: true,
+            });
+            equitySeries = equityChart.addAreaSeries({
+                lineColor: '#3b82f6',
+                topColor: 'rgba(59, 130, 246, 0.4)',
+                bottomColor: 'rgba(59, 130, 246, 0.05)',
+                lineWidth: 2,
+            });
+        }
+
+        function updateEquityChart() {
+            initEquityChart();
+            var trades = allTradesFromStatus(statusData).filter(function(t) { return t.exit_time && t.pnl_usd != null; });
+            trades.sort(function(a, b) { return new Date(a.exit_time) - new Date(b.exit_time); });
+
+            var grouped = {};
+            trades.forEach(function(t) {
+                var sec = Math.floor(new Date(t.exit_time).getTime() / 1000);
+                grouped[sec] = (grouped[sec] || 0) + t.pnl_usd;
+            });
+            var times = Object.keys(grouped).sort(function(a, b) { return a - b; });
+            var data = [];
+            var cumulative = 0;
+            var peak = 0;
+            var maxDd = 0;
+            times.forEach(function(sec) {
+                cumulative += grouped[sec];
+                if (cumulative > peak) peak = cumulative;
+                var dd = peak !== 0 ? (peak - cumulative) / peak : 0;
+                if (dd > maxDd) maxDd = dd;
+                data.push({ time: parseInt(sec), value: cumulative });
+            });
+
+            if (equitySeries) {
+                equitySeries.setData(data);
+                equityChart.timeScale().fitContent();
+            }
+
+            document.getElementById('eq-equity').innerText = formatUSD(cumulative);
+            document.getElementById('eq-peak').innerText = formatUSD(peak);
+            document.getElementById('eq-dd').innerText = (maxDd * 100).toFixed(2) + '%';
+        }
+
+        function updateBotHealth() {
+            var container = document.getElementById('bot-health-bar');
+            var html = '';
+            var oldest = null;
+            Object.entries(statusData).forEach(function(e) {
+                var asset = e[0], info = e[1];
+                if (asset === 'global_metrics' || asset === 'total_open_exposure_usd' || asset === 'total_open_risk_usd' || asset === 'today_pnl_usd' || asset === 'daily_loss_limit') return;
+                var health = info.bot_health || {};
+                var healthy = !!health.healthy;
+                var sec = health.last_check_seconds_ago;
+                if (sec != null && (oldest == null || sec > oldest)) oldest = sec;
+                html += '<div class="flex items-center gap-1.5"><div class="h-1.5 w-1.5 rounded-full ' + (healthy ? 'bg-accentGreen' : 'bg-accentRed') + '"></div><span class="text-[10px] text-slate-400 font-mono uppercase">' + asset + '</span></div>';
+            });
+            container.innerHTML = html || '<span class="text-[10px] text-slate-600 font-mono">No bots</span>';
+            document.getElementById('last-update-text').innerText = 'Last update: ' + (oldest != null ? oldest + 's ago' : '—');
+        }
+
+        function updateAnalyticsFilters() {
+            var sel = document.getElementById('analytics-asset-filter');
+            var current = sel.value;
+            var assets = Object.keys(statusData).filter(function(k) {
+                return k !== 'global_metrics' && k !== 'total_open_exposure_usd' && k !== 'total_open_risk_usd' && k !== 'today_pnl_usd' && k !== 'daily_loss_limit';
+            });
+            sel.innerHTML = '<option value="ALL">ALL ASSETS</option>';
+            assets.forEach(function(a) {
+                sel.innerHTML += '<option value="' + a + '">' + a + '</option>';
+            });
+            sel.value = current;
+        }
+
+        function updateTradeAnalytics() {
+            var trades = collectFilteredTrades();
+            var total = trades.length;
+            var wins = trades.filter(function(t) { return (t.pnl_usd || 0) > 0; });
+            var losses = trades.filter(function(t) { return (t.pnl_usd || 0) <= 0; });
+            var winRate = total > 0 ? wins.length / total * 100 : 0;
+            var grossProfit = wins.reduce(function(s, t) { return s + (t.pnl_usd || 0); }, 0);
+            var grossLoss = Math.abs(losses.reduce(function(s, t) { return s + (t.pnl_usd || 0); }, 0));
+            var pf = grossLoss > 0 ? grossProfit / grossLoss : null;
+            var avgWin = wins.length ? grossProfit / wins.length : 0;
+            var avgLoss = losses.length ? grossLoss / losses.length : 0;
+            var expectancy = total > 0 ? (grossProfit - grossLoss) / total : 0;
+            var pnlList = trades.map(function(t) { return t.pnl_usd || 0; });
+            var best = pnlList.length ? Math.max.apply(null, pnlList) : 0;
+            var worst = pnlList.length ? Math.min.apply(null, pnlList) : 0;
+            var avgDur = total > 0 ? trades.reduce(function(s, t) { return s + (t.duration_min || 0); }, 0) / total : 0;
+
+            var stats = [
+                ['Total', total], ['Win Rate', winRate.toFixed(1) + '%'], ['Profit Factor', pf != null ? pf.toFixed(2) : '—'],
+                ['Avg Win', formatUSD(avgWin)], ['Avg Loss', formatUSD(-avgLoss)], ['Expectancy', formatUSD(expectancy)],
+                ['Best', formatUSD(best)], ['Worst', formatUSD(worst)], ['Avg Dur', avgDur ? Math.round(avgDur) + 'm' : '—']
+            ];
+            document.getElementById('analytics-stats').innerHTML = stats.map(function(s) {
+                return '<div class="bg-black/40 p-1.5 rounded"><div class="text-[9px] text-slate-600 uppercase">' + s[0] + '</div><div class="font-mono font-bold text-slate-200">' + s[1] + '</div></div>';
+            }).join('');
+
+            var reasons = {};
+            trades.forEach(function(t) {
+                var r = normalizeReason(t.reason);
+                if (!reasons[r]) reasons[r] = { total: 0, wins: 0, losses: 0 };
+                reasons[r].total++;
+                if ((t.pnl_usd || 0) > 0) reasons[r].wins++; else reasons[r].losses++;
+            });
+            var order = ['TARGET', 'STOP_LOSS', 'TIME', 'OTHER'];
+            var tbody = document.getElementById('analytics-reason-body');
+            tbody.innerHTML = '';
+            order.forEach(function(r) {
+                if (!reasons[r]) return;
+                var o = reasons[r];
+                var wr = o.total > 0 ? (o.wins / o.total * 100).toFixed(1) + '%' : '—';
+                tbody.innerHTML += '<tr class="border-b border-darkBorder/20"><td class="py-1 text-slate-400 uppercase">' + r + '</td><td class="py-1 text-right text-slate-300">' + o.total + '</td><td class="py-1 text-right text-accentGreen">' + o.wins + '</td><td class="py-1 text-right text-accentRed">' + o.losses + '</td><td class="py-1 text-right text-slate-300">' + wr + '</td></tr>';
+            });
+            if (!trades.length) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-600">No trades match filters</td></tr>';
+        }
+
+        function updateRiskDashboard() {
+            var exposure = statusData.total_open_exposure_usd || 0;
+            var risk = statusData.total_open_risk_usd || 0;
+            var todayPnl = statusData.today_pnl_usd || 0;
+            var limit = statusData.daily_loss_limit || -5000;
+
+            document.getElementById('risk-exposure').innerText = '$' + exposure.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('risk-stop').innerText = '$' + risk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            var tpEl = document.getElementById('risk-today-pnl');
+            tpEl.innerText = formatUSD(todayPnl);
+            tpEl.className = 'font-mono font-bold ' + (todayPnl >= 0 ? 'text-accentGreen' : 'text-accentRed');
+            document.getElementById('risk-limit').innerText = formatUSD(limit);
+
+            var bar = document.getElementById('risk-limit-bar');
+            var pct = 0;
+            if (limit < 0) {
+                pct = Math.min(100, Math.max(0, (todayPnl / limit) * 100));
+            }
+            bar.style.width = pct + '%';
+            bar.className = 'h-full ' + (pct >= 100 ? 'bg-accentRed' : pct >= 75 ? 'bg-accentGold' : 'bg-accentGreen');
+
+            var tbody = document.getElementById('risk-asset-body');
+            tbody.innerHTML = '';
+            Object.entries(statusData).forEach(function(e) {
+                var asset = e[0], info = e[1];
+                if (asset === 'global_metrics' || asset === 'total_open_exposure_usd' || asset === 'total_open_risk_usd' || asset === 'today_pnl_usd' || asset === 'daily_loss_limit') return;
+                var exp = info.open_exposure_usd || 0;
+                var rsk = info.open_risk_usd || 0;
+                if (exp <= 0 && rsk <= 0) return;
+                tbody.innerHTML += '<tr class="border-b border-darkBorder/20"><td class="py-1 text-slate-400">' + asset + '</td><td class="py-1 text-right text-slate-300">$' + exp.toFixed(0) + '</td><td class="py-1 text-right text-accentRed">$' + rsk.toFixed(0) + '</td></tr>';
+            });
+            if (!tbody.children.length) tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-slate-600">No open positions</td></tr>';
+        }
 
         function buildDatafeed() {
             var intervals = {};
@@ -443,7 +741,7 @@
 
                 Object.entries(data).forEach(function(e) {
                     var asset = e[0], info = e[1];
-                    if (asset === 'global_metrics') return;
+                    if (asset === 'global_metrics' || asset === 'total_open_exposure_usd' || asset === 'total_open_risk_usd' || asset === 'today_pnl_usd' || asset === 'daily_loss_limit') return;
                     var state = info.state || {};
                     var stats = state.stats || {};
                     var pnl = stats.totalPnlUsd || 0;
@@ -466,7 +764,7 @@
                 var metricsHtml = '';
                 Object.entries(data).forEach(function(e) {
                     var asset = e[0], info = e[1];
-                    if (asset === 'global_metrics') return;
+                    if (asset === 'global_metrics' || asset === 'total_open_exposure_usd' || asset === 'total_open_risk_usd' || asset === 'today_pnl_usd' || asset === 'daily_loss_limit') return;
                     var m = info.metrics || {};
                     var state = info.state || {};
                     var stats = state.stats || {};
@@ -483,7 +781,7 @@
                 });
                 document.getElementById('metrics-section').innerHTML = metricsHtml;
 
-                var numAssets = Object.keys(data).filter(function(k) { return k !== 'global_metrics'; }).length;
+                var numAssets = Object.keys(data).filter(function(k) { return k !== 'global_metrics' && k !== 'total_open_exposure_usd' && k !== 'total_open_risk_usd' && k !== 'today_pnl_usd' && k !== 'daily_loss_limit'; }).length;
                 var gPnl = document.getElementById('global-pnl');
                 gPnl.innerText = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 gPnl.className = 'font-bold font-mono ' + (totalPnl >= 0 ? 'text-accentGreen' : 'text-accentRed');
@@ -500,6 +798,12 @@
                 gpf.innerText = gpfVal != null ? gpfVal.toFixed(2) : '∞';
                 gpf.className = 'font-bold font-mono text-xs ' + pfColor(gpfVal);
 
+                updateBotHealth();
+                updateEquityChart();
+                updateAnalyticsFilters();
+                updateTradeAnalytics();
+                updateRiskDashboard();
+
                 if (isFirstLoad) selectAsset(selectedAsset);
                 else updateMarkers(selectedAsset);
             }).catch(function(e) {
@@ -510,6 +814,10 @@
         }
 
         window.addEventListener('load', function() {
+            document.getElementById('analytics-asset-filter').addEventListener('change', function(ev) { filterAsset = ev.target.value; updateTradeAnalytics(); });
+            document.getElementById('analytics-direction-filter').addEventListener('change', function(ev) { filterDirection = ev.target.value; updateTradeAnalytics(); });
+            document.getElementById('analytics-reason-filter').addEventListener('change', function(ev) { filterReason = ev.target.value; updateTradeAnalytics(); });
+            window.addEventListener('resize', function() { if (equityChart) equityChart.applyOptions({ width: document.getElementById('equity-chart-container').clientWidth }); });
             updateStatus();
             setInterval(updateStatus, 3000);
         });
