@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="data:,">
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="/static/charting_library/charting_library.standalone.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -49,6 +49,12 @@
                     <span class="text-slate-600">|</span>
                     <span class="text-slate-600 text-[10px] uppercase">Bots</span>
                     <span id="global-running" class="font-bold text-slate-200 font-mono text-xs">0/7</span>
+                    <span class="text-slate-600">|</span>
+                    <span class="text-slate-600 text-[10px] uppercase">Sharpe</span>
+                    <span id="global-sharpe" class="font-bold text-slate-200 font-mono text-xs">—</span>
+                    <span class="text-slate-600">|</span>
+                    <span class="text-slate-600 text-[10px] uppercase">PF</span>
+                    <span id="global-pf" class="font-bold text-slate-200 font-mono text-xs">—</span>
                 </div>
                 <div class="flex items-center gap-1.5 ml-2">
                     <div id="conn-status" class="h-1.5 w-1.5 rounded-full bg-accentGreen"></div>
@@ -63,6 +69,8 @@
         <section class="grid grid-cols-7 gap-1.5">
             <div id="asset-cards-container" class="contents"></div>
         </section>
+
+        <section class="grid grid-cols-7 gap-1.5 mb-0.5" id="metrics-section"></section>
 
         <section class="grid grid-cols-1 lg:grid-cols-12 gap-2">
 
@@ -136,10 +144,11 @@
     <script>
         let statusData = {};
         let selectedAsset = 'BTC';
-        let chart = null;
-        let series = null;
-        let markers = [];
-        const ASSETS = [];
+        let widget = null;
+        let widgetReady = false;
+        let chartReadyCount = 0;
+        let chartInitInProgress = false;
+        let _shapeIds = [];
 
         function formatUSD(v) {
             if (v == null) return '-';
@@ -148,56 +157,130 @@
         }
         function fmt(v, d) { return v == null ? '-' : Number(v).toLocaleString(undefined, { minimumFractionDigits: d||4, maximumFractionDigits: d||4 }); }
 
-        function initChart() {
-            chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-                layout: { background: { type: 'solid', color: '#000000' }, textColor: '#9ca3af' },
-                grid: { vertLines: { color: '#1a1a1a' }, horzLines: { color: '#1a1a1a' } },
-                timeScale: { timeVisible: true, secondsVisible: false },
-                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-                rightPriceScale: { borderColor: '#1a1a1a' },
-                width: document.getElementById('chart-container').clientWidth,
-                height: 520,
-            });
-            series = chart.addCandlestickSeries({
-                upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444',
-                wickUpColor: '#10b981', wickDownColor: '#ef4444',
-            });
-            chart.subscribeCrosshairMove(function(param) {
-                // future: show trade info on hover
-            });
-            window.addEventListener('resize', function() {
-                var c = document.getElementById('chart-container');
-                chart.applyOptions({ width: c.clientWidth });
-            });
+        function buildDatafeed() {
+            var intervals = {};
+            return {
+                searchSymbols: function(userInput, exchange, symbolType, onResult) {
+                    onResult([]);
+                },
+                onReady: function(cb) {
+                    setTimeout(function() {
+                        cb({ supported_resolutions: ['1','5','15','30','60','240','1D'] });
+                    }, 0);
+                },
+                resolveSymbol: function(sym, onResolve, onError) {
+                    setTimeout(function() {
+                        onResolve({
+                            name: sym, ticker: sym, description: sym + '-PERP',
+                            type: 'crypto', session: '24x7', exchange: 'HyperLiquid',
+                            listed_exchange: 'HyperLiquid', timezone: 'Etc/UTC',
+                            format: 'price', minmov: 1, pricescale: 100,
+                            has_intraday: true,
+                            intraday_multipliers: ['1','5','15','30','60','240'],
+                            supported_resolutions: ['1','5','15','30','60','240','1D'],
+                            volume_precision: 2, data_status: 'streaming',
+                        });
+                    }, 0);
+                },
+                getBars: function(sym, res, params, onResult, onError) {
+                    fetch('/api/candles/' + sym.name)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (!Array.isArray(data) || !data.length) { onResult([], { noData: true }); return; }
+                            var bars = data.map(function(c) {
+                                return { time: c.time * 1000, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+                            });
+                            var limit = params.countBack || bars.length;
+                            var result = bars.length > limit ? bars.slice(bars.length - limit) : bars;
+                            console.log('[bars] countBack:', limit, 'returning:', result.length, 'first:', new Date(result[0].time).toISOString(), 'last:', new Date(result[result.length-1].time).toISOString());
+                            onResult(result, { noData: false });
+                        })
+                        .catch(function(e) { console.error('[bars] error', e); onError(e.message); });
+                },
+                subscribeBars: function(sym, res, onTick, guid, onResetCacheNeededCallback) {
+                    var timer = setInterval(function() {
+                        fetch('/api/candles/' + sym.name)
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (!Array.isArray(data) || !data.length) return;
+                                var last = data[data.length - 1];
+                                onTick({ time: last.time * 1000, open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume });
+                            });
+                    }, 15000);
+                    intervals[guid] = timer;
+                },
+                unsubscribeBars: function(guid) {
+                    if (intervals[guid]) { clearInterval(intervals[guid]); delete intervals[guid]; }
+                },
+            };
         }
 
-        function loadChartData(asset) {
-            fetch('/api/candles/' + asset).then(function(r) { return r.json(); }).then(function(data) {
-                if (!Array.isArray(data)) return;
-                series.setData(data.map(function(c) { return { time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }; }));
-                updateMarkers(asset);
-            }).catch(function(e) { console.error('candle error', e); });
+        function initChart() {
+            if (chartInitInProgress) { console.log('[chart] init already in progress, skipping'); return; }
+            chartInitInProgress = true;
+            if (widget) { try { widget.remove(); } catch(e) {} widget = null; widgetReady = false; }
+            console.log('[chart] creating widget for', selectedAsset);
+            console.log('[chart] container dimensions:', document.getElementById('chart-container').offsetWidth, 'x', document.getElementById('chart-container').offsetHeight);
+            widget = new TradingView.widget({
+                autosize: true,
+                symbol: selectedAsset,
+                interval: '60',
+                container: 'chart-container',
+                datafeed: buildDatafeed(),
+                library_path: '/static/charting_library/',
+                locale: 'en',
+                theme: 'dark',
+                custom_css_url: '/static/charting_library/custom-dark.css',
+                loading_screen: { backgroundColor: '#000000' },
+                disabled_features: [
+                    'header_widget', 'header_symbol_search', 'header_compare',
+                    'header_undo_redo', 'header_screenshot', 'header_settings',
+                    'header_saveload', 'adaptive_logo', 'show_logo_on_advanced_chart',
+                    'use_localstorage_for_settings', 'edit_menu',
+                    'left_toolbar',
+                ],
+                enabled_features: ['hide_left_toolbar_by_default'],
+                debug: true,
+            });
+            widget.onChartReady(function() {
+                chartInitInProgress = false;
+                widgetReady = true;
+                chartReadyCount++;
+                console.log('[chart] onChartReady fired #' + chartReadyCount, 'asset:', selectedAsset);
+                updateMarkers(selectedAsset);
+            });
+            setTimeout(function() { chartInitInProgress = false; }, 10000);
         }
 
         function updateMarkers(asset) {
+            if (!widget || !widgetReady) return;
+            var chart = widget.chart();
+            _shapeIds.forEach(function(id) {
+                try { chart.removeEntity(id); } catch(e) {}
+            });
+            _shapeIds = [];
             var state = (statusData[asset] || {}).state || {};
             var trades = state.trade_history || [];
-            var m = [];
-            trades.forEach(function(t, idx) {
+            trades.forEach(function(t) {
                 if (!t.exit_time) return;
-                var tSec = Math.floor(new Date(t.exit_time).getTime() / 1000);
-                m.push({
-                    time: tSec, position: t.direction === 'LONG' ? 'belowBar' : 'aboveBar',
-                    color: t.pnl_usd > 0 ? '#10b981' : '#ef4444',
-                    shape: t.pnl_usd > 0 ? 'arrowUp' : 'arrowDown',
-                    text: (t.pnl_usd > 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0)
-                });
+                var time = Math.floor(new Date(t.exit_time).getTime());
+                try {
+                    chart.createShape({ time: time }, {
+                        shape: 'flag',
+                        text: (t.pnl_usd > 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0),
+                        overrides: { color: t.pnl_usd > 0 ? '#10b981' : '#ef4444' },
+                    }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
+                } catch(e) {}
             });
             if (state.direction && state.direction !== 'FLAT' && state.entryPrice && state.entryTime) {
-                var eSec = Math.floor(new Date(state.entryTime).getTime() / 1000);
-                m.push({ time: eSec, position: 'inBar', color: '#3b82f6', shape: 'circle', text: 'E' });
+                var eTime = Math.floor(new Date(state.entryTime).getTime());
+                try {
+                    chart.createShape({ time: eTime }, {
+                        shape: 'flag', text: 'E',
+                        overrides: { color: '#3b82f6' },
+                    }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
+                } catch(e) {}
             }
-            series.setMarkers(m);
         }
 
         function selectAsset(asset) {
@@ -242,7 +325,24 @@
             });
             if (display.length === 0) historyTable.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-600">No trades yet — your algo writes trade_history to states/</td></tr>';
 
-            loadChartData(asset);
+            if (widget && widgetReady) {
+                widget.setSymbol(asset, '60', function() { updateMarkers(asset); });
+            } else {
+                initChart();
+            }
+        }
+
+        function sharpeColor(v) {
+            if (v == null) return 'text-slate-600';
+            if (v >= 1.5) return 'text-accentGreen';
+            if (v >= 1.0) return 'text-accentGold';
+            return 'text-accentRed';
+        }
+        function pfColor(v) {
+            if (v == null) return 'text-slate-600';
+            if (v >= 2.0) return 'text-accentGreen';
+            if (v >= 1.5) return 'text-accentGold';
+            return 'text-accentRed';
         }
 
         function updateStatus() {
@@ -258,6 +358,7 @@
 
                 Object.entries(data).forEach(function(e) {
                     var asset = e[0], info = e[1];
+                    if (asset === 'global_metrics') return;
                     var state = info.state || {};
                     var stats = state.stats || {};
                     var pnl = stats.totalPnlUsd || 0;
@@ -268,6 +369,7 @@
                     var totalT = stats.totalTrades || 0;
                     var wr = totalT > 0 ? (stats.wins / totalT * 100).toFixed(0) : 0;
                     var isSelected = selectedAsset === asset;
+                    if (totalT > 0 || dir !== 'FLAT') active++;
 
                     html += '<div onclick="selectAsset(\'' + asset + '\')" data-asset="' + asset + '" class="asset-card p-2 ' + (isSelected ? 'bg-slate-900' : 'hover:bg-slate-900/50') + ' flex flex-col justify-between h-[60px]">';
                     html += '<div class="flex items-center justify-between"><span class="font-bold text-xs text-white">' + asset + '</span></div>';
@@ -276,13 +378,45 @@
                 });
                 container.innerHTML = html;
 
+                var metricsHtml = '';
+                Object.entries(data).forEach(function(e) {
+                    var asset = e[0], info = e[1];
+                    if (asset === 'global_metrics') return;
+                    var m = info.metrics || {};
+                    var state = info.state || {};
+                    var stats = state.stats || {};
+                    var pnl = stats.totalPnlUsd || 0;
+                    var sh = m.sharpe, pf = m.profit_factor, wr = m.win_rate;
+                    metricsHtml += '<div class="p-1.5 bg-slate-950/50 border-b border-darkBorder/50">';
+                    metricsHtml += '<div class="text-[8px] text-slate-600 uppercase font-mono leading-none mb-0.5">' + asset + '</div>';
+                    metricsHtml += '<div class="grid grid-cols-2 gap-x-2 gap-y-0 text-[9px] font-mono">';
+                    metricsHtml += '<span class="text-slate-600">Sharpe</span><span class="text-right ' + sharpeColor(sh) + '">' + (sh != null ? sh.toFixed(2) : '—') + '</span>';
+                    metricsHtml += '<span class="text-slate-600">PF</span><span class="text-right ' + pfColor(pf) + '">' + (pf != null ? pf.toFixed(2) : '∞') + '</span>';
+                    metricsHtml += '<span class="text-slate-600">WR</span><span class="text-right text-slate-200">' + (wr != null ? wr.toFixed(1) + '%' : '—') + '</span>';
+                    metricsHtml += '<span class="text-slate-600">$</span><span class="text-right ' + (pnl >= 0 ? 'text-accentGreen' : 'text-accentRed') + '">' + (pnl >= 0 ? '+' : '') + pnl.toFixed(0) + '</span>';
+                    metricsHtml += '</div></div>';
+                });
+                document.getElementById('metrics-section').innerHTML = metricsHtml;
+
+                var numAssets = Object.keys(data).filter(function(k) { return k !== 'global_metrics'; }).length;
                 var gPnl = document.getElementById('global-pnl');
                 gPnl.innerText = (totalPnl >= 0 ? '+' : '') + '$' + Math.abs(totalPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 gPnl.className = 'font-bold font-mono ' + (totalPnl >= 0 ? 'text-accentGreen' : 'text-accentRed');
                 document.getElementById('global-wr').innerText = (totalWins + totalLosses > 0 ? (totalWins / (totalWins + totalLosses) * 100).toFixed(1) : '0.0') + '%';
-                document.getElementById('global-running').innerText = active + '/' + Object.keys(data).length;
+                document.getElementById('global-running').innerText = active + '/' + numAssets;
+
+                var gm = data.global_metrics || {};
+                var gsh = document.getElementById('global-sharpe');
+                var gshVal = gm.sharpe;
+                gsh.innerText = gshVal != null ? gshVal.toFixed(2) : '—';
+                gsh.className = 'font-bold font-mono text-xs ' + sharpeColor(gshVal);
+                var gpf = document.getElementById('global-pf');
+                var gpfVal = gm.profit_factor;
+                gpf.innerText = gpfVal != null ? gpfVal.toFixed(2) : '∞';
+                gpf.className = 'font-bold font-mono text-xs ' + pfColor(gpfVal);
 
                 if (isFirstLoad) selectAsset(selectedAsset);
+                else updateMarkers(selectedAsset);
             }).catch(function(e) {
                 console.error('status error', e);
                 document.getElementById('conn-status').className = 'h-2 w-2 rounded-full bg-accentRed';
@@ -291,7 +425,6 @@
         }
 
         window.addEventListener('load', function() {
-            initChart();
             updateStatus();
             setInterval(updateStatus, 3000);
         });
