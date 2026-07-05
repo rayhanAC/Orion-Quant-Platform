@@ -183,6 +183,7 @@
                     }, 0);
                 },
                 getBars: function(sym, res, params, onResult, onError) {
+                    try { fetch('/api/log', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({msg: 'getBars symbol=' + sym.name + ' res=' + res + ' from=' + params.from + ' to=' + params.to + ' countBack=' + params.countBack + ' first=' + params.firstDataRequest}) }); } catch(e) {}
                     fetch('/api/candles/' + sym.name)
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
@@ -263,21 +264,21 @@
             var trades = state.trade_history || [];
             trades.forEach(function(t) {
                 if (!t.exit_time) return;
-                var time = Math.floor(new Date(t.exit_time).getTime());
+                var time = Math.floor(new Date(t.exit_time).getTime() / 1000);
                 try {
                     chart.createShape({ time: time }, {
                         shape: 'flag',
-                        text: (t.pnl_usd > 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0),
-                        overrides: { color: t.pnl_usd > 0 ? '#10b981' : '#ef4444' },
+                        text: (t.pnl_usd >= 0 ? '+' : '') + Number(t.pnl_usd).toFixed(0),
+                        overrides: { flagColor: t.pnl_usd >= 0 ? '#10b981' : '#ef4444' },
                     }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
                 } catch(e) {}
             });
             if (state.direction && state.direction !== 'FLAT' && state.entryPrice && state.entryTime) {
-                var eTime = Math.floor(new Date(state.entryTime).getTime());
+                var eTime = Math.floor(new Date(state.entryTime).getTime() / 1000);
                 try {
                     chart.createShape({ time: eTime }, {
                         shape: 'flag', text: 'E',
-                        overrides: { color: '#3b82f6' },
+                        overrides: { flagColor: '#3b82f6' },
                     }).then(function(id) { _shapeIds.push(id); }).catch(function(){});
                 } catch(e) {}
             }

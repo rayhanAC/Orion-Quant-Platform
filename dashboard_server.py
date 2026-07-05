@@ -156,6 +156,18 @@ def get_config(asset):
         return jsonify({"error": "Invalid asset"}), 400
     return jsonify(load_config_dict(asset))
 
+@app.route("/api/log", methods=["POST"])
+def client_log():
+    try:
+        payload = request.get_json(force=True, silent=True) or {}
+        msg = payload.get("msg", "")
+        print(f"[CLIENT] {msg}")
+        with open("client.log", "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+    except Exception as e:
+        print(f"[CLIENT] log error: {e}")
+    return jsonify({"ok": True})
+
 if __name__ == "__main__":
     os.makedirs(STATE_DIR, exist_ok=True)
     os.makedirs(CONFIG_DIR, exist_ok=True)
