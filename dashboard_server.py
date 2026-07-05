@@ -5,6 +5,8 @@ import time
 import csv
 import io
 import statistics
+import requests
+import traceback
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, render_template, make_response
 
@@ -167,6 +169,7 @@ def fetch_candles(asset):
         return formatted
     except Exception as e:
         print(f"Error fetching candles for {asset}: {e}")
+        traceback.print_exc()
         return None
 
 # ─── routes ─────────────────────────────────────────────────────────────
